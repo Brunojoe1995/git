@@ -249,17 +249,23 @@ static char *apply_command(struct conf_info *conf, const char *arg)
 static void apply_item_command(struct trailer_item *in_tok, struct arg_item *arg_tok)
 {
 	if (arg_tok->conf.command || arg_tok->conf.cmd) {
-		const char *arg;
+		char *value_to_free = NULL;
+		char *arg;
+
 		if (arg_tok->value && arg_tok->value[0]) {
-			arg = arg_tok->value;
+			arg = (char *)arg_tok->value;
 		} else {
 			if (in_tok && in_tok->value)
 				arg = xstrdup(in_tok->value);
 			else
 				arg = xstrdup("");
+			value_to_free = arg_tok->value;
 		}
+
 		arg_tok->value = apply_command(&arg_tok->conf, arg);
-		free((char *)arg);
+
+		free(value_to_free);
+		free(arg);
 	}
 }
 
@@ -1114,6 +1120,7 @@ void format_trailers(const struct process_trailer_options *opts,
 		if (item->token) {
 			struct strbuf tok = STRBUF_INIT;
 			struct strbuf val = STRBUF_INIT;
+
 			strbuf_addstr(&tok, item->token);
 			strbuf_addstr(&val, item->value);
 
@@ -1124,7 +1131,7 @@ void format_trailers(const struct process_trailer_options *opts,
 			 * corresponding value).
 			 */
 			if (opts->trim_empty && !strlen(item->value))
-				continue;
+				goto next;
 
 			if (!opts->filter || opts->filter(&tok, opts->filter_data)) {
 				if (opts->separator && out->len != origlen)
@@ -1145,9 +1152,10 @@ void format_trailers(const struct process_trailer_options *opts,
 				if (!opts->separator)
 					strbuf_addch(out, '\n');
 			}
+
+next:
 			strbuf_release(&tok);
 			strbuf_release(&val);
-
 		} else if (!opts->only_trailers) {
 			if (opts->separator && out->len != origlen) {
 				strbuf_addbuf(out, opts->separator);
